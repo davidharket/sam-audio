@@ -1,32 +1,35 @@
-# Use a PyTorch base image with CUDA support for RunPod
-FROM pytorch/pytorch:2.4.1-cuda11.8-cudnn8-runtime
+# Use the proven RunPod base image
+FROM runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel
 
-# Set working directory
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+
 WORKDIR /app
 
-# Install system dependencies (FFmpeg is required for audio processing)
-RUN apt-get update && apt-get install -y \
-    git \
-    ffmpeg \
+# 1. Install System Dependencies
+RUN apt-get update --yes --quiet && \
+    apt-get install --yes --quiet --no-install-recommends \
+      ffmpeg \
+      git \
+      libsndfile1 \
+      build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone the specific repository
+# 2. Clone the SAM-Audio repository
+# We clone this first so we can install it in the next step
 RUN git clone https://github.com/davidharket/sam-audio.git .
 
-# Install Python dependencies
-# We install the repo in editable mode to ensure sam_audio is in the path
-RUN pip install --no-cache-dir -e .
-RUN pip install --no-cache-dir huggingface_hub accelerate
+# 3. Install Python dependencies
+# We install the repository itself (-e .) plus the HF requirements
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -e . && \
+    pip install --no-cache-dir huggingface_hub accelerate
 
-# Create a directory for outputs
+# 4. Create output directory
 RUN mkdir -p /app/outputs
 
-# Copy your inference script into the container
+# 5. Copy your inference script (ensure inference.py is in your build folder)
 COPY inference.py /app/inference.py
 
-# Set the Hugging Face token environment variable placeholder
-# (You will pass this via RunPod's env variables)
-ENV HF_TOKEN=""
-
-# Default command (keeps container alive for manual use or runs a script)
+# Default command
 CMD ["python3", "inference.py"]
